@@ -171,6 +171,23 @@ t("silence is a forfeit, not a close round", () => {
   return (v.forfeit && v.winner === "pro") || `${v.winner} forfeit=${v.forfeit}`;
 });
 t("two silent speakers produce no result", () => judge(round("um", "er")).winner === "draw" || "awarded silence");
+t("identical speeches draw", () => {
+  const v = judge(round(strong, strong));
+  return (v.winner === "draw" && v.margin < 0.01) || `${v.winner} by ${v.margin}`;
+});
+t("going second is not worth a criterion on its own", () => {
+  const v = judge(round(strong, strong));
+  return !v.scored.includes("response") || "responsiveness scored with no chance to reciprocate";
+});
+t("responsiveness is scored when both sides get a later speech", () => {
+  const four = { topic, transcript: [
+    { phase: "p1", label: "Constructive", kind: "speech", side: "pro", allotted: 240, spoken: 220, text: strong },
+    { phase: "c1", label: "Constructive", kind: "speech", side: "con", allotted: 240, spoken: 220, text: weak },
+    { phase: "p2", label: "Rebuttal", kind: "speech", side: "pro", allotted: 240, spoken: 220, text: strong },
+    { phase: "c2", label: "Rebuttal", kind: "speech", side: "con", allotted: 240, spoken: 220, text: weak },
+  ] };
+  return judge(four).scored.includes("response") || "dropped when it should count";
+});
 t("every criterion is reported", () => {
   const v = judge(round(strong, weak));
   const keys = Object.keys(v.scores.pro.criteria);
