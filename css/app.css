@@ -16,6 +16,8 @@
   --warn: #475569;
   --pro: #1d4ed8;
   --con: #475569;
+  --accent-strong: #1740b0;
+  --on-accent: #ffffff;
   --dot: #1d4ed8;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --serif: ui-serif, Georgia, "Times New Roman", serif;
@@ -36,6 +38,8 @@
     --warn: #8b96a3;
     --pro: #6ea0ff;
     --con: #9aa5b1;
+    --accent-strong: #8fb6ff;
+    --on-accent: #0d1117;
     --dot: #ffffff;
   }
 }
@@ -114,13 +118,13 @@ button { font: inherit; }
 .btn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 11px 18px;
-  background: var(--ink); color: var(--paper);
-  border: 1px solid var(--ink);
+  background: var(--accent); color: var(--on-accent);
+  border: 1px solid var(--accent);
   cursor: pointer;
   font-size: 15px;
 }
-.btn:hover { background: var(--accent); border-color: var(--accent); }
-.btn:disabled { opacity: .4; cursor: default; background: var(--ink); border-color: var(--ink); }
+.btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.btn:disabled { opacity: .4; cursor: default; background: var(--accent); border-color: var(--accent); }
 .btn.ghost { background: none; color: var(--ink); border-color: var(--rule-strong); }
 .btn.ghost:hover { border-color: var(--accent); color: var(--accent); background: none; }
 .btn.big { padding: 15px 26px; font-size: 17px; width: 100%; justify-content: center; }
