@@ -205,6 +205,22 @@ function showPreviewBallot(league) {
   show("ballot", viewBallot);
 }
 
+function viewAdvertise() {
+  const frag = h("div", { class: "prose" });
+  frag.append(h("h2", {}, "Advertise"));
+
+  frag.append(h("p", {},
+    "If you're interested in putting your advertisements on this website, email me at: ",
+    h("a", { href: "mailto:evany7701@gmail.com" }, "evany7701@gmail.com"), "."));
+
+  frag.append(h("p", { class: "small" },
+    "Worth knowing before you ask: this site runs no analytics of any kind, so there are "
+    + "no traffic figures to quote you. Email is the only way to reach me about this."));
+
+  motion.stagger(frag.children, { step: 40 });
+  return frag;
+}
+
 // --- privacy and terms -------------------------------------------------------
 
 function viewPrivacy() {
@@ -1100,6 +1116,7 @@ const PAGES = {
   about: viewAbout,
   privacy: viewPrivacy,
   terms: viewTerms,
+  advertise: viewAdvertise,
   preview: viewPreview,
 };
 

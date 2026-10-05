@@ -178,8 +178,37 @@ async function modelBallot(round, rubric) {
   };
 }
 
+// Coarse categories only. Enough to tell a missing key from a rejected one without
+// describing the inside of the function to the caller.
+function why(err) {
+  const msg = String((err && err.message) || err || "");
+  const status = err && err.status;
+  if (/Cannot find|ERR_MODULE_NOT_FOUND/i.test(msg)) return "sdk-missing";
+  if (status === 401 || status === 403) return "key-rejected";
+  if (status === 429) return "rate-limited";
+  if (status >= 500) return "upstream";
+  if (/declined/.test(msg)) return "declined";
+  if (/ballot/.test(msg)) return "malformed";
+  if (/abort|timeout/i.test(msg)) return "timeout";
+  return "error";
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+
+  // GET is a health check: which judge is configured, never the key itself.
+  if (req.method === "GET") {
+    return res.status(200).json({
+      ok: true,
+      judge: process.env.ANTHROPIC_API_KEY ? "model" : "rubric",
+      model: process.env.ANTHROPIC_API_KEY ? MODEL : null,
+      rubric: METHOD,
+      note: process.env.ANTHROPIC_API_KEY
+        ? "A model ballot will be attempted for each round, with the rubric as fallback."
+        : "ANTHROPIC_API_KEY is not set on this deployment, so every round is scored by the rubric.",
+    });
+  }
+
   if (req.method !== "POST") return res.status(405).json({ error: "method" });
 
   let body = req.body;
@@ -230,13 +259,13 @@ export default async function handler(req, res) {
   try {
     const ballot = await modelBallot(round, rubric);
     return res.status(200).json({ ok: true, source: "model", method: ballot.method, ballot });
-  } catch {
+  } catch (err) {
     // Any failure at all and the round is still judged, just not by the model.
     return res.status(200).json({
       ok: true,
       source: "rubric",
       method: METHOD,
-      ballot: { ...rubric, source: "rubric", degraded: true },
+      ballot: { ...rubric, source: "rubric", degraded: true, why: why(err) },
     });
   }
 }
