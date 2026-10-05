@@ -47,11 +47,13 @@ function show(name, build) {
 function viewHome() {
   const frag = h("div");
 
-  frag.append(
-    h("p", { class: "lede" },
-      "You are put in a round with a stranger. You do not meet them, you do not see a name. ",
-      "A motion appears, you get five minutes, and then you debate it."),
-  );
+  frag.append(h("div", { class: "hero" },
+    h("h1", {}, "Debate a stranger."),
+    h("p", {}, "You are put in a round with someone you will never meet. A motion appears, "
+      + "you both get five minutes, and then you argue it on the clock.")));
+
+  frag.append(h("div", { class: "section-label" },
+    "Choose a league", h("span", {}, "each one is rated separately")));
 
   const list = h("div", { class: "leagues" });
   for (const id of LEAGUES) {
@@ -65,36 +67,102 @@ function viewHome() {
         S.league = id;
         profile.setLastLeague(id);
         for (const el of list.children) el.setAttribute("aria-pressed", String(el === btn));
-        motion.pop(btn.querySelector(".badge"));
       },
     },
-      rankBadge(r, 30),
-      h("span", {},
-        h("span", { class: "league-name" }, f.name), h("br"),
-        h("span", { class: "league-sub" }, f.tagline)),
-      h("span", { class: "league-rank" },
-        h("b", {}, r.label),
-        l.rounds ? `${l.rating} · ${l.wins}-${l.losses}${l.draws ? "-" + l.draws : ""}` : "unrated"),
+      h("div", {},
+        h("div", { class: "league-name" }, f.name),
+        h("div", { class: "league-sub" }, f.tagline)),
+      h("div", { class: "league-rank" },
+        rankBadge(r, 18),
+        h("b", {}, l.rounds ? r.label : "unrated"),
+        l.rounds ? h("span", { class: "mono" }, `${l.rating} · ${l.wins}-${l.losses}`) : null),
     );
     list.append(btn);
   }
   frag.append(list);
 
-  const go = h("button", { class: "btn big", onclick: beginSearch },
-    "Start a round", icon("next", 17));
-  frag.append(go);
+  frag.append(h("button", { class: "btn big", onclick: beginSearch },
+    "Start a round", icon("next", 17)));
 
-  frag.append(h("p", { class: "small", style: { marginTop: "12px" } },
-    "Five minutes of research, then the real speech times for the format. ",
-    "Your microphone only opens when it is your turn."));
+  frag.append(h("p", { class: "small", style: { marginTop: "14px", maxWidth: "58ch" } },
+    "Your microphone stays closed until it is your turn, and closed entirely during research. "
+    + "At the end the transcript is judged with the sides anonymised."));
 
   if (!speechSupported) {
     frag.append(h("div", { class: "notice" },
-      "This browser has no speech recognition, so your speeches will be typed instead of spoken. ",
-      "Chrome, Edge or Safari will transcribe you."));
+      "This browser has no speech recognition, so your speeches will be typed instead of spoken. "
+      + "Chrome, Edge or Safari will transcribe you."));
   }
 
   motion.stagger(frag.children, { step: 55, y: 12 });
+  return frag;
+}
+
+// --- privacy and terms -------------------------------------------------------
+
+function viewPrivacy() {
+  const frag = h("div", { class: "prose" });
+  frag.append(h("h2", {}, "Privacy"));
+  frag.append(h("p", { class: "small" }, "Short version: there is no account, so there is almost nothing to collect."));
+
+  frag.append(h("h3", {}, "What stays in your browser"));
+  frag.append(h("ul", {},
+    h("li", {}, "A random id, generated on your first visit. It is not linked to anything about you and it never leaves your device except as the label on your place in the queue."),
+    h("li", {}, "Your rating, record and rank in each league."),
+    h("li", {}, "The ids of motions you have already debated, so you are not given them again."),
+    h("li", {}, "Clearing this site's data erases all of it, permanently, and makes you a new person here.")));
+
+  frag.append(h("h3", {}, "What the server sees"));
+  frag.append(h("ul", {},
+    h("li", {}, "While you are waiting or connecting: your random id, the league you chose, and the WebRTC handshake messages being passed to your opponent. These are held in memory for the length of the round and are not written to a database."),
+    h("li", {}, "When the round ends, the transcript is sent once to the judging endpoint to produce the ballot. It is scored and discarded — it is not stored, logged or used to train anything."),
+    h("li", {}, "Your hosting provider keeps ordinary web request logs, including IP addresses, as every web host does.")));
+
+  frag.append(h("h3", {}, "Your voice"));
+  frag.append(h("ul", {},
+    h("li", {}, "Audio goes directly between the two browsers. It is not recorded and it does not pass through this server."),
+    h("li", {}, "Speech recognition is the browser's own. In Chrome and Edge that feature sends audio to Google's recognition service under Google's terms; in Safari it is handled by Apple. That is the browser's behaviour, not this site's, and it is the same engine any dictation box on the web uses."),
+    h("li", {}, "The scratchpad during research is never sent anywhere.")));
+
+  frag.append(h("h3", {}, "No tracking"));
+  frag.append(h("p", { class: "small" }, "No analytics, no advertising, no third-party scripts, no cookies. The page loads nothing from any domain other than its own."));
+
+  frag.append(h("h3", {}, "Children"));
+  frag.append(h("p", { class: "small" }, "This is a live, unmoderated audio conversation with a stranger. It is not intended for under-13s, and under-18s should have a parent's permission."));
+
+  motion.stagger(frag.children, { step: 30 });
+  return frag;
+}
+
+function viewTerms() {
+  const frag = h("div", { class: "prose" });
+  frag.append(h("h2", {}, "Terms"));
+  frag.append(h("p", { class: "small" }, "Plain terms for a free, unmoderated site run as a side project."));
+
+  frag.append(h("h3", {}, "What this is"));
+  frag.append(h("p", { class: "small" }, "A free service that pairs two strangers for a debate round. It is provided as it is, with no guarantee that it works, stays available, or keeps your rating."));
+
+  frag.append(h("h3", {}, "You are talking to a stranger"));
+  frag.append(h("ul", {},
+    h("li", {}, "Rounds are live and nobody is screening them. You may be matched with someone who is rude, offensive, or not debating in good faith."),
+    h("li", {}, "Leave any round you are not comfortable in. Leaving is always available and costs you nothing but the round."),
+    h("li", {}, "Do not share anything that identifies you — your name, your school, where you live, or any way to contact you."),
+    h("li", {}, "Recording the other person without telling them may be illegal where you or they live. This site does not record anyone.")));
+
+  frag.append(h("h3", {}, "What you agree not to do"));
+  frag.append(h("ul", {},
+    h("li", {}, "Harass, threaten, or abuse the person you are matched with."),
+    h("li", {}, "Use the round for anything sexual, or for anything involving a minor."),
+    h("li", {}, "Attempt to identify, follow or contact an opponent outside the round."),
+    h("li", {}, "Automate, script or flood the matchmaking endpoint, or arrange rounds with someone you know in order to inflate a rating.")));
+
+  frag.append(h("h3", {}, "Ratings and ballots"));
+  frag.append(h("p", { class: "small" }, "The ballot is produced by a rubric that counts features of the transcript. It is not a qualified judge and it will sometimes be wrong. Ratings are stored only in your browser and carry no standing anywhere, in any real competition."));
+
+  frag.append(h("h3", {}, "Liability"));
+  frag.append(h("p", { class: "small" }, "To the extent the law allows, this site is provided without warranty of any kind, and whoever runs it is not liable for anything that happens in or because of a round. If you do not accept that, do not use it."));
+
+  motion.stagger(frag.children, { step: 30 });
   return frag;
 }
 
@@ -849,6 +917,8 @@ for (const b of document.querySelectorAll("[data-nav]")) {
     leaveAll();
     if (n === "topics") show("topics", viewTopics);
     else if (n === "ladder") show("ladder", viewLadder);
+    else if (n === "privacy") show("privacy", viewPrivacy);
+    else if (n === "terms") show("terms", viewTerms);
     else show("about", viewAbout);
   });
 }
