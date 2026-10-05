@@ -15,7 +15,6 @@ import { FORMATS, POI_PROTECT } from "/lib/formats.mjs";
 
 const TICK = 250;
 const BROADCAST = 500;
-const PREP_CHUNK = 30;
 const POI_SECONDS = 15;
 
 export class Round {
@@ -30,7 +29,6 @@ export class Round {
     this.index = 0;
     this.rem = this.format.phases[0].sec;
     this.remStamp = performance.now();
-    this.prep = { pro: this.format.prepBank, con: this.format.prepBank };
     this.ready = { pro: false, con: false };
     this.poi = null;                       // { by, until } while one is live
     this.poiOffer = null;                  // { by } while one is pending
@@ -114,7 +112,6 @@ export class Round {
       t: "clock",
       i: this.index,
       rem: Number(this.remaining().toFixed(2)),
-      prep: this.prep,
       ready: this.ready,
       poi: this.poi ? { by: this.poi.by, left: Math.max(0, (this.poi.until - performance.now()) / 1000) } : null,
       offer: this.poiOffer ? { by: this.poiOffer.by } : null,
@@ -124,40 +121,27 @@ export class Round {
 
   // --- requests ---------------------------------------------------------------
 
-  // Skip the gap between speeches once both have said they are ready.
-  markReady() {
+  // Skip the gap between speeches once both have said they are ready. Ready is a
+  // toggle, not a commitment: five minutes of research is long enough to change your
+  // mind about being finished with it.
+  markReady(value) {
     if (this.phase.kind !== "gate" && this.phase.kind !== "research") return;
-    if (this.isHost) this._ready(this.side);
-    else this.send({ t: "ready" });
+    const want = value === undefined ? !this.ready[this.side] : Boolean(value);
+    if (this.isHost) return this._ready(this.side, want);
+    this.ready[this.side] = want;            // optimistic; the host's clock confirms
+    this.send({ t: "ready", v: want });
+    this.on("prep", this.view());
   }
 
-  _ready(who) {
-    this.ready[who] = true;
-    if (this.solo || (this.ready.pro && this.ready.con)) {
+  _ready(who, value) {
+    this.ready[who] = value !== false;
+    const go = this.solo ? this.ready[who] : (this.ready.pro && this.ready.con);
+    if (go) {
       if (this.index + 1 >= this.format.phases.length) return this._finish();
       this._setPhase(this.index + 1);
       this.on("phase", this.view());
     }
     this._broadcast(true);
-  }
-
-  // Spend thirty seconds of your own prep bank, as you would on a real flow.
-  takePrep() {
-    if (this.isHost) this._prep(this.side);
-    else this.send({ t: "prep" });
-  }
-
-  _prep(who) {
-    if (this.phase.kind !== "gate") return;
-    if (this.phase.prep && this.phase.prep !== who) return;
-    if (this.prep[who] < 1) return;
-    const spend = Math.min(PREP_CHUNK, this.prep[who]);
-    this.prep[who] -= spend;
-    this.rem = this.remaining() + spend;
-    this.remStamp = performance.now();
-    this.ready = { pro: false, con: false };
-    this._broadcast(true);
-    this.on("prep", this.view());
   }
 
   // --- points of information ----------------------------------------------------
@@ -246,7 +230,6 @@ export class Round {
         this.index = m.i;
         this.rem = m.rem;
         this.remStamp = performance.now();
-        this.prep = m.prep || this.prep;
         this.ready = m.ready || this.ready;
         this.poi = m.poi ? { by: m.poi.by, until: performance.now() + m.poi.left * 1000 } : null;
         this.poiOffer = m.offer || null;
@@ -254,8 +237,7 @@ export class Round {
         this.on(moved ? "phase" : "tick", this.view());
         break;
       }
-      case "ready": if (this.isHost) this._ready(this.other); break;
-      case "prep": if (this.isHost) this._prep(this.other); break;
+      case "ready": if (this.isHost) this._ready(this.other, m.v !== false); break;
       case "poi": if (this.isHost) this._poi(m.act, this.other); break;
       case "line":
         if (m.side === this.side) return;   // our own lines are already in
@@ -298,7 +280,6 @@ export class Round {
       progress: p.sec ? rem / p.sec : 0,
       floor,
       mine: floor === "both" || floor === this.side,
-      prep: this.prep,
       ready: this.ready,
       poi: this.poi,
       poiOffer: this.poiOffer,

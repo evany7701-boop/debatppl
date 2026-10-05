@@ -284,7 +284,7 @@ function viewAbout() {
     ["Pick a league and press start", "Each league is a real format with its own rating. Nothing else is configured; there is nothing to sign up for."],
     ["You are matched, but not introduced", "You get the motion and your side. You do not get a name, a face or a profile, and neither do they."],
     ["Five minutes", "Both of you research in silence. Microphones are closed. There is a scratchpad that nobody else can see."],
-    ["The round runs itself", "Speeches follow the published times for the format. Only the speaker's microphone is open; the app enforces it. Prep time comes out of your own bank, and in World Schools and British Parliamentary you can offer points of information."],
+    ["The round runs itself", "Speeches follow the published times for the format. Only the speaker's microphone is open and the app enforces it. There are thirty seconds between speeches, which either of you can cut short by pressing Ready, and nobody can add time. In World Schools and British Parliamentary you can offer points of information."],
     ["Your speech becomes a transcript", "Recognition runs in your browser. Nothing is uploaded to transcribe it."],
     ["A blind ballot", "The transcript is relabelled Speaker A and Speaker B before anything is scored, so the judge cannot know which side it is rewarding. You get the criteria, the numbers behind them, and a reason for decision."],
   ];
@@ -724,7 +724,7 @@ function paintPhase(v) {
   u.timeSub.textContent = p.kind === "research" ? "research" : p.kind === "gate" ? "between" : p.kind;
 
   if (p.kind === "research") u.phaseWho.textContent = "Both microphones are closed. Nobody can hear you.";
-  else if (p.kind === "gate") u.phaseWho.textContent = "Take prep, or say you are ready.";
+  else if (p.kind === "gate") u.phaseWho.textContent = "Thirty seconds. Press Ready when you both are.";
   else if (p.kind === "cross") u.phaseWho.replaceChildren(h("span", { class: "floor-mine" }, "Both microphones are open."));
   else if (v.mine) u.phaseWho.replaceChildren(h("span", { class: "floor-mine" }, "You have the floor."));
   else u.phaseWho.textContent = "Your opponent has the floor.";
@@ -763,7 +763,7 @@ function paintTick(v) {
 
   // Repaint the controls only when something about them actually changed: the peer
   // marking ready, a prep bank draining, or the point-of-information window opening.
-  const sig = [v.ready.pro, v.ready.con, v.prep.pro, v.prep.con, v.canOfferPoi,
+  const sig = [v.ready.pro, v.ready.con, v.canOfferPoi,
     v.poiOffer ? v.poiOffer.by : "", v.poi ? 1 : 0].join("|");
   if (sig !== u.controlSig) { u.controlSig = sig; paintControls(v); }
 }
@@ -779,20 +779,12 @@ function paintControls(v) {
     const ready = v.ready[S.room.side];
     kids.push(h("button", {
       class: "btn small" + (ready ? " ghost" : ""),
-      disabled: ready,
       onclick: () => { S.round.markReady(); paintControls(S.round.view()); },
-    }, ready ? "waiting for them" : "Ready", ready ? null : icon("check", 15)));
-
-    if (p.kind === "gate" && f.prepBank > 0 && (!p.prep || p.prep === S.room.side)) {
-      const left = v.prep[S.room.side] || 0;
-      const label = h("span", { class: "mono" }, fmtClock(left));
-      u.prepLabel = label;
-      kids.push(h("button", {
-        class: "btn ghost small",
-        disabled: left < 1,
-        onclick: () => S.round.takePrep(),
-      }, icon("clock", 15), "Prep +30s · ", label));
+    }, ready ? "Cancel ready" : "Ready", ready ? icon("close", 15) : icon("check", 15)));
+    if (ready && !v.ready[otherSide(S.room.side)]) {
+      kids.push(h("span", { class: "small" }, "waiting for your opponent"));
     }
+
   }
 
   if (f.poi && p.kind === "speech") {
@@ -930,6 +922,17 @@ function viewBallot() {
           : `${sideName(room.league, ballot.winner)} by ${ballot.margin.toFixed(2)} of ten.`)));
 
   frag.append(h("p", { class: "small", style: { marginTop: "14px" } }, room.topic.text));
+
+  // Who decided this, and whether the other judge agreed.
+  const byModel = ballot.source === "model";
+  frag.append(h("p", { class: "small judged" },
+    byModel
+      ? `Judged by ${String(ballot.method || "").replace(/^model:/, "")}, reading the transcript with the sides anonymised.`
+      : ballot.walkover ? "No ballot: the round did not finish."
+        : ballot.degraded
+          ? "The model judge could not be reached, so this round was scored by the rubric."
+          : "Scored by the rubric. Sides were anonymised before anything was measured.",
+    ballot.cross ? " " + ballot.cross.note : ""));
 
   // criteria
   if (ballot.scores && ballot.scores[mine] && ballot.scores[mine].criteria) {

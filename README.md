@@ -19,22 +19,28 @@ league moves.
 3. **Five minutes of research.** Both microphones are closed. There is a scratchpad only
    you can see.
 4. **The round runs on the real speech times.** Only the speaker's microphone is open and
-   the app enforces it by disabling the outbound audio track. Prep comes out of your own
-   bank, thirty seconds at a time. In World Schools and British Parliamentary you can
-   offer points of information, which open both microphones for fifteen seconds.
+   the app enforces it by disabling the outbound audio track. Thirty seconds between
+   speeches, skippable by both pressing Ready, extendable by nobody. In World Schools and
+   British Parliamentary you can offer points of information, which open both microphones
+   for fifteen seconds.
 5. **Your speech becomes a transcript** through the browser's own speech recognition.
    Nothing is uploaded to transcribe it.
 6. **A ballot**, with the criteria, the numbers behind them, and a reason for decision.
 
 ## Leagues
 
-| League | Speech times | Prep bank | Points of information |
-| --- | --- | --- | --- |
-| Spar | 2 / 2 / cross 1:30 / 1:30 / 1:30 / 1 / 1 | 1:00 | — |
-| Public Forum | 4 / 4 / cross 3 / 4 / 4 / cross 3 / 3 / 3 / grand cross 3 / 2 / 2 | 3:00 | — |
-| Lincoln–Douglas | 6 / cx 3 / 7 / cx 3 / 4 / 6 / 3 | 4:00 | — |
-| World Schools | 6 / 6 / 6 / 6 / reply 4 / reply 4 | 2:00 | yes |
-| British Parliamentary | 7 / 7 / 7 / 7 | — | yes |
+| League | Speech times | Points of information |
+| --- | --- | --- |
+| Spar | 2 / 2 / cross 1:30 / 1:30 / 1:30 / 1 / 1 | — |
+| Public Forum | 4 / 4 / cross 3 / 4 / 4 / cross 3 / 3 / 3 / grand cross 3 / 2 / 2 | — |
+| Lincoln–Douglas | 6 / cx 3 / 7 / cx 3 / 4 / 6 / 3 | — |
+| World Schools | 6 / 6 / 6 / 6 / reply 4 / reply 4 | yes |
+| British Parliamentary | 7 / 7 / 7 / 7 | yes |
+
+Every round opens with five minutes of research, and there is a flat **thirty seconds**
+between speeches which either side can cut short by pressing Ready. There is no prep
+bank and no way to add time: on a real circuit prep is a resource you manage, but here
+you are on a clock with a stranger, and nobody should be able to stall anybody.
 
 Lincoln–Douglas and Public Forum use the published NSDA times. World Schools, British
 Parliamentary and the team halves of Public Forum are normally more than one speaker a
@@ -76,11 +82,31 @@ same as arguing better — there is a test for exactly that. Each criterion is a
 antisymmetric function of the pair, so swapping the two transcripts swaps the ballot
 exactly; there is a test for that too.
 
-**There is no model in this build and no API key anywhere in it.** `POST /api/judge` is
-the seam: it returns the rubric ballot today, and a model-written ballot would replace
-the body of that one function without the client changing. When that happens the
-transcript should be blinded with `blind()` before it reaches the model, sent as Speaker
-A and Speaker B, and mapped back afterwards — the same discipline the rubric follows.
+### The model judge
+
+`POST /api/judge` runs **Claude Opus 5** over the transcript when `ANTHROPIC_API_KEY` is
+set, and the deterministic rubric when it is not. Set the key in Vercel under *Settings →
+Environment Variables*; nothing else needs configuring, and the app works without it.
+
+The rubric runs on every round either way, because it is two things at once: the fallback
+when the key is missing or the call fails, and a second opinion. The ballot says which
+judge decided the round and whether the other one agreed.
+
+What the model is sent: the motion, and the speeches in order, labelled Speaker A and
+Speaker B under the same content-seeded permutation the rubric uses. Speech labels are
+stripped — an "Affirmative constructive" announces its own side — and no id, rating or
+join order goes with it. It is told to judge only what is in the transcript, not to
+import its own view of the motion, not to reward length, and not to penalise anyone for
+speech-recognition artefacts, which the transcript is full of.
+
+What blinding here cannot do, stated plainly: **it cannot hide the order.** Whoever
+opened spoke first, and in every one of these formats that is the proposition, so a
+capable model can infer which speaker held which side. A judge sitting in the room knows
+that too. What makes it fair is upstream rather than in the prompt — the lobby draws
+sides at random, so no player is systematically handed the side a judge might favour.
+
+Cost is roughly a few cents a round at Opus 5 rates. `ANTHROPIC_MODEL` overrides the
+model if you want a cheaper one.
 
 ## Motions
 

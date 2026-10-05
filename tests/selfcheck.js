@@ -72,8 +72,15 @@ t("Public Forum matches the published times", () => {
   const sec = FORMATS.pf.phases.filter((p) => p.kind === "speech" || p.kind === "cross").map((p) => p.sec);
   return String(sec) === String([240, 240, 180, 240, 240, 180, 180, 180, 180, 120, 120]) || `got ${sec}`;
 });
-t("prep banks are what the circuits use", () =>
-  (FORMATS.ld.prepBank === 240 && FORMATS.pf.prepBank === 180) || "prep bank wrong");
+t("every gap between speeches is a flat thirty seconds", () => {
+  for (const l of LEAGUES) {
+    const bad = FORMATS[l].phases.filter((p) => p.kind === "gate" && p.sec !== 30);
+    if (bad.length) return `${l}: ${bad.map((p) => p.id + "=" + p.sec).join(",")}`;
+  }
+  return true;
+});
+t("no format carries a prep bank", () =>
+  LEAGUES.every((l) => !FORMATS[l].prepBank) || "a prep bank survived");
 for (const l of LEAGUES) note(`${FORMATS[l].name}: ${fmtClock(roundSeconds(FORMATS[l]))} end to end`);
 
 // --- ranks ----------------------------------------------------------------

@@ -68,5 +68,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/judge.js": {
+      "maxDuration": 60
+    }
+  }
 }

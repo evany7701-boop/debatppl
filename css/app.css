@@ -280,6 +280,7 @@ textarea.pad:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .bar.con .bar-fill { background: var(--con); }
 .bar.flip .bar-fill { inset: 0 0 0 100%; }
 
+.judged { color: var(--faint); border-left: 2px solid var(--rule-strong); padding-left: 10px; }
 .rfd { margin: 16px 0 0; padding: 0; list-style: none; }
 .rfd li { font-size: 14px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid var(--rule); }
 .rfd li:last-child { border-bottom: 0; }
