@@ -28,7 +28,7 @@ const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 // so the shape follows the model rather than the other way round.
 function thinkingFor(model) {
   return /-4-5$|-4-5-|sonnet-4-5|haiku-4-5/.test(model)
-    ? { type: "enabled", budget_tokens: 4000 }
+    ? { type: "enabled", budget_tokens: 2500 }
     : { type: "adaptive" };
 }
 const MAX_SPEECHES = 40;
@@ -36,9 +36,9 @@ const CHAR_BUDGET = 120000;
 
 const SYSTEM = `You are judging a one-on-one competitive debate round.
 
-You are given the motion and a transcript of two speakers, A and B. You do not know
-which side of the motion either of them was assigned, and you must not try to work it
-out or let a guess affect the result.
+You are given the motion and a transcript of two speakers, Alpha and Beta. You do not
+know which side of the motion either of them was assigned, and you must not try to work
+it out or let a guess affect the result.
 
 How to judge:
 
@@ -60,9 +60,14 @@ Never penalise a speaker for a transcription artefact, and read a garbled passag
 charitably rather than treating it as incoherence.
 
 Score each criterion from 0 to 10 for each speaker, as a pair that reflects how they
-compared on it. Then write 4 to 7 lines of reason for decision. Each line must point at
-something specific that was actually said, in your own words, and refer to the speakers
-only as "Speaker A" and "Speaker B". Do not pad the ballot with generic advice.
+compared on it. Then write 4 to 6 lines of reason for decision, one or two sentences
+each. Each line must point at something specific that was actually said, in your own
+words. Do not pad the ballot with generic advice.
+
+Always name the speakers in full, as "Speaker Alpha" and "Speaker Beta". Never shorten
+either to a single letter and never write "A" or "B" on its own: those names are
+substituted for the real sides before anyone reads your ballot, and a bare letter
+survives the substitution and reaches the reader as nonsense.
 
 Call the record_ballot tool with your decision. Do not reply with prose.`;
 
@@ -102,7 +107,7 @@ const TOOL = {
 // a rebuttal cannot be judged before the thing it answers.
 function brief(round, b) {
   const lines = round.transcript.map((t, i) => {
-    const who = t.side === b.A ? "Speaker A" : "Speaker B";
+    const who = t.side === b.A ? "Speaker Alpha" : "Speaker Beta";
     const kind = t.kind === "cross" ? "open exchange, both speakers" : "speech";
     const used = t.allotted ? `, used about ${t.spoken}s of ${t.allotted}s allowed` : "";
     return `[${i + 1}] ${who} (${kind}${used})\n${t.text}`;
@@ -144,9 +149,15 @@ async function modelBallot(round, rubric) {
   if (!winner) throw new Error("unknown winner");
 
   // Worlds-style names here; the client renames them for the league in play.
+  const nameA = b.A === "pro" ? "Proposition" : "Opposition";
+  const nameB = b.B === "pro" ? "Proposition" : "Opposition";
+  // Alpha and Beta are not English words, so a bare mention can be substituted too -
+  // which "A" and "B" could not be, "A" being an article.
   const named = (s) => String(s)
-    .replace(/Speaker A/g, b.A === "pro" ? "Proposition" : "Opposition")
-    .replace(/Speaker B/g, b.B === "pro" ? "Proposition" : "Opposition");
+    .replace(/\bSpeaker Alpha\b/g, nameA)
+    .replace(/\bSpeaker Beta\b/g, nameB)
+    .replace(/\bAlpha\b/g, nameA)
+    .replace(/\bBeta\b/g, nameB);
 
   const packed = {};
   for (const [tag, side] of [["a", b.A], ["b", b.B]]) {
