@@ -227,6 +227,12 @@ What was looked for, and what was done about it.
 Known and accepted, because fixing them properly needs infrastructure this build
 deliberately does not have:
 
+- **Server-side mailbox clearing is best effort.** On the memory backend a `leave` and
+  a room creation can land on different function instances, so a frame from a finished
+  round can still be delivered. Every relayed frame therefore names the room it belongs
+  to and the client discards any that names a different one — that stamp, not the
+  clearing, is the guarantee. Turning on the Redis backend makes the clearing reliable
+  too.
 - **No rate limiting.** There is no shared state to count against, so the lobby can be
   flooded with ghost entries that real players then have to pop through. Turning on the
   Redis backend is the first step to fixing it.

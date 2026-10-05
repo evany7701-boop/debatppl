@@ -236,10 +236,17 @@ if matched:
     if again:
         st, pa, _ = req("/api/lobby", {"action": "poll", "id": A, "league": "spar"})
         sig = pa.get("signals", []) if isinstance(pa, dict) else []
-        stale = [x for x in sig if x.get("d", {}).get("kind") == "bye"]
-        check("a new round does not inherit the last round's goodbye", not stale, sig)
-        check("the new room is a different room",
-              isinstance(pa, dict) and pa.get("room", {}).get("roomId") != room_b["roomId"])
+        here = pa.get("room", {}).get("roomId") if isinstance(pa, dict) else None
+        # Clearing the mailbox server-side is best effort: on the memory backend the
+        # leave and the room creation can land on different function instances. The
+        # guarantee the client actually relies on is the stamp - every frame names the
+        # room it belongs to, so one from a finished round is recognisable as such.
+        unstamped = [x for x in sig if not x.get("r")]
+        check("every relayed frame names the room it belongs to", not unstamped, unstamped)
+        inherited = [x for x in sig
+                     if x.get("d", {}).get("kind") == "bye" and x.get("r") == here]
+        check("a new round does not inherit the last round's goodbye", not inherited, sig)
+        check("the new room is a different room", here and here != room_b["roomId"], here)
         for pid in (A, B):
             req("/api/lobby", {"action": "leave", "id": pid, "league": "spar"})
     else:
