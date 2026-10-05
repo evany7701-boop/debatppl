@@ -81,17 +81,19 @@ function viewHome() {
   }
   frag.append(list);
 
-  frag.append(h("button", { class: "btn big", onclick: beginSearch },
-    "Start a round", icon("next", 17)));
-
-  frag.append(h("p", { class: "small", style: { marginTop: "14px", maxWidth: "58ch" } },
-    "Your microphone stays closed until it is your turn, and closed entirely during research. "
-    + "At the end the transcript is judged with the sides anonymised."));
-
-  if (!speechSupported) {
-    frag.append(h("div", { class: "notice" },
-      "This browser has no speech recognition, so your speeches will be typed instead of spoken. "
-      + "Chrome, Edge or Safari will transcribe you."));
+  if (speechSupported) {
+    frag.append(h("button", { class: "btn big", onclick: beginSearch },
+      "Start a round", icon("next", 17)));
+    frag.append(h("p", { class: "small", style: { marginTop: "14px", maxWidth: "58ch" } },
+      "You argue out loud. Your microphone stays closed until it is your turn, and closed "
+      + "entirely during research. At the end the transcript is judged with the sides anonymised."));
+  } else {
+    frag.append(h("button", { class: "btn big", disabled: true }, "Start a round"));
+    frag.append(h("div", { class: "notice bad" },
+      h("b", {}, "This browser cannot hear you."),
+      " debat ppl is spoken only — there is no way to type a speech, because a text box is "
+      + "somewhere to paste an argument you did not make. This browser has no speech "
+      + "recognition, so open ", h("b", {}, "Chrome, Edge or Safari"), " instead."));
   }
 
   motion.stagger(frag.children, { step: 55, y: 12 });
@@ -285,7 +287,7 @@ function viewAbout() {
     ["You are matched, but not introduced", "You get the motion and your side. You do not get a name, a face or a profile, and neither do they."],
     ["Five minutes", "Both of you research in silence. Microphones are closed. There is a scratchpad that nobody else can see."],
     ["The round runs itself", "Speeches follow the published times for the format. Only the speaker's microphone is open and the app enforces it. There are thirty seconds between speeches, which either of you can cut short by pressing Ready, and nobody can add time. In World Schools and British Parliamentary you can offer points of information."],
-    ["Your speech becomes a transcript", "Recognition runs in your browser. Nothing is uploaded to transcribe it."],
+    ["You argue out loud", "Recognition runs in your browser and nothing is uploaded to transcribe it. There is no text box: a speech you can type is a speech you can paste, and a round decided between two pasted arguments is not a debate. If your browser cannot hear you, it cannot take part."],
     ["A blind ballot", "The transcript is relabelled Speaker A and Speaker B before anything is scored, so the judge cannot know which side it is rewarding. You get the criteria, the numbers behind them, and a reason for decision."],
   ];
   const ol = h("div");
@@ -427,6 +429,11 @@ async function beginSearch() {
   S.searchStarted = Date.now();
   show("searching", () => viewSearching(f));
   await ensureMic();
+  if (!S.stream) {
+    // There is no second way to take part, so there is no point queueing.
+    show("nomic", viewNoMic);
+    return;
+  }
   updateSearchMic();
 
   S.session = new Session({
@@ -500,9 +507,28 @@ function viewSearching(f) {
 
 function updateSearchMic() {
   if (!S.ui.micLine) return;
-  S.ui.micLine.textContent = S.stream
-    ? "Microphone ready. It stays closed until it is your turn."
-    : `No microphone (${S.micError || "declined"}). You can still debate by typing.`;
+  S.ui.micLine.textContent = "Microphone ready. It stays closed until it is your turn.";
+}
+
+function viewNoMic() {
+  const denied = S.micError === "NotAllowedError" || S.micError === "denied";
+  const frag = h("div", { class: "searching" },
+    h("h2", {}, "debat ppl needs your microphone"),
+    h("p", { class: "small", style: { maxWidth: "46ch", margin: "0 auto" } },
+      denied
+        ? "You turned the microphone down. There is no way to type a speech here, so the "
+          + "round cannot run without it — allow the microphone in the padlock menu in your "
+          + "address bar and try again."
+        : `The microphone is not available (${S.micError || "unknown"}). Check that no other `
+          + "application is holding it, then try again."),
+    h("div", { class: "row", style: { marginTop: "24px", justifyContent: "center" } },
+      h("button", {
+        class: "btn",
+        onclick: () => { S.stream = null; S.micError = null; beginSearch(); },
+      }, "Try again"),
+      h("button", { class: "btn ghost", onclick: () => navigate("home") }, "Home")));
+  motion.stagger(frag.children, { step: 60, y: 10 });
+  return frag;
 }
 
 function showSearchError(msg) {
@@ -672,20 +698,8 @@ function viewRound() {
   const lines = h("div", { class: "transcript" }, h("p", { class: "t-empty" }, "The transcript builds here as the two of you speak."));
   const interim = h("div", { class: "t-line t-interim", style: { display: "none" } },
     h("span", { class: "t-who" }, "you"), h("span", {}, ""));
-  const typeBox = h("input", {
-    class: "pad", style: { minHeight: "0", height: "40px" },
-    placeholder: "Type your speech and press enter",
-    onkeydown: (e) => {
-      if (e.key !== "Enter") return;
-      const v = e.target.value.trim();
-      if (!v) return;
-      e.target.value = "";
-      S.round.addLine(v);
-    },
-  });
-  const typeWrap = h("div", { style: { marginTop: "10px", display: "none" } }, typeBox);
   const transcriptPanel = h("div", { class: "panel", style: { marginTop: "14px", display: "none" } },
-    h("h3", {}, "Transcript"), lines, interim, typeWrap);
+    h("h3", {}, "Transcript"), lines, interim);
 
   frag.append(padPanel, transcriptPanel);
 
@@ -698,7 +712,7 @@ function viewRound() {
 
   S.ui = {
     ringWrap, timeText, timeSub, phaseName, phaseWho, schedule, micRow, micState,
-    controls, padPanel, transcriptPanel, lines, interim, typeWrap, typeBox,
+    controls, padPanel, transcriptPanel, lines, interim,
     statusDot, statusText, emptyNote: lines.firstElementChild,
     ring: new motion.Ring(ringHead, { radius: 54 }),
     wave: new motion.Waveform(wave),
@@ -770,8 +784,6 @@ function paintPhase(v) {
   u.micState.textContent = live ? "open" : p.kind === "research" ? "closed for research" : "closed";
   u.micRow.replaceChild(icon(live ? "mic" : "micOff", 16), u.micRow.firstChild);
   u.wave.setActive(live);
-  u.typeWrap.style.display = live && (!speechSupported || !S.stream) ? "" : "none";
-  if (u.typeWrap.style.display === "") u.typeBox.focus();
   if (live) motion.pop(u.micRow, { scale: 1.02 });
 }
 
@@ -856,9 +868,9 @@ function startDictation() {
       onFinal: (t) => { if (S.round && !S.round.over) S.round.addLine(t); },
       onInterim: setInterim,
       onError: (e) => {
-        if (!S.ui.typeWrap) return;
-        S.ui.typeWrap.style.display = "";
-        S.ui.statusText.textContent = `speech recognition stopped (${e}) — type instead`;
+        if (!S.ui.statusText) return;
+        S.ui.statusDot.className = "dot bad";
+        S.ui.statusText.textContent = `speech recognition stopped (${e}) — your words are not being recorded`;
       },
     });
   }

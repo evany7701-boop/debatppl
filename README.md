@@ -23,8 +23,11 @@ league moves.
    speeches, skippable by both pressing Ready, extendable by nobody. In World Schools and
    British Parliamentary you can offer points of information, which open both microphones
    for fifteen seconds.
-5. **Your speech becomes a transcript** through the browser's own speech recognition.
-   Nothing is uploaded to transcribe it.
+5. **You argue out loud.** Browser speech recognition turns it into the transcript, and
+   nothing is uploaded to transcribe it. **There is no text box anywhere in a round** — a
+   speech you can type is a speech you can paste, and a ballot comparing two pasted cases
+   is not judging a debate. A browser that cannot hear you cannot take part, and a round
+   will not start without a working microphone.
 6. **A ballot**, with the criteria, the numbers behind them, and a reason for decision.
 
 ## Leagues
@@ -176,7 +179,11 @@ here. Everything is behind `prefers-reduced-motion`.
   not connect; the round then runs on the transcript and the interface says so.
 - **Leaving mid-round is a walkover** for whoever stayed. Two people who know each other
   could farm that.
-- **Firefox has no speech recognition.** It falls back to typing.
+- **Firefox cannot be used.** It has no Web Speech API, and since speaking is the only
+  way in, the start button is disabled there. Chrome, Edge or Safari.
+- **Reading a prepared script aloud is still possible**, and so is a second screen. The
+  spoken-only rule raises the cost of pasting an argument rather than eliminating it; the
+  research scratchpad is your own notes and is never sent anywhere.
 
 ## Preview
 

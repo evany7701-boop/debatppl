@@ -1,8 +1,10 @@
 // Speech to text, in the browser, with no key and no upload.
 //
 // This is the Web Speech API, which in practice means Chrome, Edge and Safari behave
-// and Firefox does not. Where it is missing the round still runs: the speaker types
-// into the same box instead, and the transcript the judge sees is identical.
+// and Firefox does not. Where it is missing there is no round: this is the only way a
+// speech gets into the transcript, deliberately. A text box would be a place to paste
+// an argument you did not write, and the whole thing is worth nothing if the ballot is
+// comparing two pasted cases.
 
 const Impl = typeof window !== "undefined"
   && (window.SpeechRecognition || window.webkitSpeechRecognition);
