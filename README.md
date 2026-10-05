@@ -157,3 +157,48 @@ here. Everything is behind `prefers-reduced-motion`.
 `#/preview` renders the round chrome and a sample ballot against canned data —
 the two screens that otherwise need two people and a live lobby to look at. It does
 not queue you, connect to anyone, or write to your rating.
+
+## Security
+
+What was looked for, and what was done about it.
+
+- **A player id is a bearer token.** It is the only thing identifying you to the lobby,
+  so it is 128 bits from the CSPRNG, and the relay no longer stamps forwarded frames
+  with the sender's id — the person you are debating never learns it. Before that fix
+  they could have drained your mailbox, taken your room or dropped you from the queue.
+- **The other player cannot mark the round.** Both clients ask `/api/judge` for their
+  own ballot and a ballot arriving over the data channel is ignored outright. A patched
+  client can no longer tell you that you lost.
+- **Nothing from the wire becomes markup.** The DOM helper has no way to pass HTML
+  through it; everything that is not an element is appended as a text node, and there is
+  no `innerHTML` anywhere in the codebase. A line of transcript is text wherever it is
+  rendered.
+- **Content Security Policy** is `default-src 'self'` with `script-src 'self'`, no
+  `unsafe-inline` and no `unsafe-eval`, plus `object-src 'none'`, `base-uri 'self'` and
+  `frame-ancestors 'none'`. There is no inline script or inline style left in the
+  project, including on the test page. Alongside it: `nosniff`, `no-referrer`,
+  `X-Frame-Options: DENY`, HSTS, and a `Permissions-Policy` that grants the microphone
+  to this origin and denies camera, geolocation, payment, USB, MIDI and serial.
+- **Inputs are bounded.** Player ids are stripped to `[A-Za-z0-9-]` before they are used
+  in a store key, the `seen` list is capped at 600 ids, a transcript is capped at 40
+  speeches and 120,000 characters in total, one signal call carries at most 20 frames, a
+  mailbox holds at most 120, and a client's transcript stops growing at 1,500 lines so a
+  peer cannot inflate it.
+- **Errors say nothing.** Both endpoints return a fixed string rather than an exception
+  message.
+- **The memory store expires.** Queues and mailboxes for players who closed the tab are
+  swept after two hours, so a warm instance does not accumulate them.
+- **No secrets exist in this project.** There is no key, no token and no `.env`, in the
+  working tree or anywhere in the git history.
+
+Known and accepted, because fixing them properly needs infrastructure this build
+deliberately does not have:
+
+- **No rate limiting.** There is no shared state to count against, so the lobby can be
+  flooded with ghost entries that real players then have to pop through. Turning on the
+  Redis backend is the first step to fixing it.
+- **Your IP address is visible to your opponent.** That is how a peer-to-peer call
+  works, and routing around it needs a TURN server, which needs credentials. The privacy
+  page says so plainly rather than hiding it.
+- **Ratings are client-side and therefore unenforceable.** Anyone can edit them. They
+  mean something only because nothing is at stake.

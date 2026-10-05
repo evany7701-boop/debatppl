@@ -28,13 +28,18 @@ function rid(n = 10) {
 }
 
 function clean(s, max = 64) {
-  return typeof s === "string" ? s.slice(0, max).replace(/[^\w:-]/g, "") : "";
+  // Player ids go straight into store keys. Letters, digits, dash only — nothing
+  // that could reach into another key namespace.
+  return typeof s === "string" ? s.slice(0, max).replace(/[^A-Za-z0-9-]/g, "") : "";
 }
 
-async function pickTopic(league, seen) {
+const SEEN_CAP = 600;
+
+async function pickTopic(league, seenRaw) {
+  const seen = Array.isArray(seenRaw) ? seenRaw.slice(0, SEEN_CAP) : [];
   const style = preferredStyle(league);
   const recent = new Set((await store.lrange(RECENT_KEY, 0, RECENT_KEEP)).map(Number));
-  const skip = new Set([...(Array.isArray(seen) ? seen : []).map(Number), ...recent]);
+  const skip = new Set([...seen.map(Number), ...recent]);
 
   // Preferred style, not seen by this player, not served lately.
   let pool = ALL_TOPICS.filter((t) => t.style === style && !skip.has(t.id));
@@ -42,7 +47,7 @@ async function pickTopic(league, seen) {
   if (!pool.length) pool = ALL_TOPICS.filter((t) => !skip.has(t.id));
   // Then anything they personally have not had, ignoring the global ring buffer.
   if (!pool.length) {
-    const mine = new Set((Array.isArray(seen) ? seen : []).map(Number));
+    const mine = new Set(seen.map(Number));
     pool = ALL_TOPICS.filter((t) => !mine.has(t.id));
   }
   // Only once the bag is genuinely exhausted does it reset.
@@ -149,7 +154,9 @@ async function signal(body) {
   if (!peer) return { error: "no peer" };
   const items = Array.isArray(body.data) ? body.data : [body.data];
   if ((await store.llen(mKey(peer))) > MAILBOX_CAP) return { ok: true, dropped: true };
-  await store.rpush(mKey(peer), ...items.slice(0, 20).map((d) => JSON.stringify({ from: id, d })));
+  // Deliberately no sender id in the envelope. A player id is the only thing that
+  // authenticates a player to this endpoint, so it must never reach the other side.
+  await store.rpush(mKey(peer), ...items.slice(0, 20).map((d) => JSON.stringify({ d })));
   return { ok: true };
 }
 
@@ -163,7 +170,7 @@ async function leave(body) {
   const room = await roomOf(id);
   if (room) {
     const peer = room.members.find((m) => m !== id);
-    if (peer) await store.rpush(mKey(peer), JSON.stringify({ from: id, d: { kind: "bye" } }));
+    if (peer) await store.rpush(mKey(peer), JSON.stringify({ d: { kind: "bye" } }));
     await store.del(pKey(id));
   }
   return { ok: true };
@@ -202,7 +209,8 @@ export default async function handler(req, res) {
       case "leave": return res.status(200).json(await leave(body));
       default: return res.status(400).json({ error: "unknown action" });
     }
-  } catch (err) {
-    return res.status(500).json({ error: String((err && err.message) || err) });
+  } catch {
+    // Nothing about the inside of this function is the caller's business.
+    return res.status(500).json({ error: "lobby unavailable" });
   }
 }

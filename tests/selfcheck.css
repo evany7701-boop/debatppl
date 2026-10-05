@@ -1,0 +1,10 @@
+  body { font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; background: #ffffff; color: #0f1419; margin: 0; padding: 20px; }
+h1 { font: 600 16px/1 ui-monospace, monospace; margin: 0 0 14px; }
+.r { padding: 2px 0; }
+.pass::before { content: "PASS  "; color: #0e7490; }
+.fail::before { content: "FAIL  "; color: #1d4ed8; font-weight: 700; }
+.fail { color: #1d4ed8; }
+#summary { margin-top: 14px; padding: 10px; border: 2px solid; font-weight: 700; }
+.ok { border-color: #0e7490; color: #0e7490; }
+.bad { border-color: #1d4ed8; color: #1d4ed8; }
+.note { color: #5a646f; }

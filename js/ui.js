@@ -3,12 +3,14 @@
 // Six icons, drawn as paths rather than pulled from a library, because six icons is
 // not a reason to ship an icon library.
 
+// There is deliberately no way to pass markup through this. Everything that is not
+// an element goes in as a text node, so a line of transcript from the other side
+// cannot become HTML no matter where it is rendered.
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
     if (k === "class") el.className = v;
-    else if (k === "html") el.innerHTML = v;
     else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
     else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
     else el.setAttribute(k, v === true ? "" : String(v));

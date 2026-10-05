@@ -4,18 +4,19 @@
    almost no CSS transitions in here. */
 
 :root {
-  --paper: #faf9f6;
+  --paper: #ffffff;
   --panel: #ffffff;
-  --ink: #16140f;
-  --muted: #6d6962;
-  --faint: #93908a;
-  --rule: #ddd8cf;
-  --rule-strong: #c4bdb1;
-  --accent: #9c3a1b;
-  --live: #1f6b4a;
-  --warn: #9a6b12;
-  --pro: #2c5d7c;
-  --con: #8a4324;
+  --ink: #0f1419;
+  --muted: #5a646f;
+  --faint: #8b949e;
+  --rule: #e2e6ea;
+  --rule-strong: #c3cad2;
+  --accent: #1d4ed8;
+  --live: #0e7490;
+  --warn: #475569;
+  --pro: #1d4ed8;
+  --con: #475569;
+  --dot: #1d4ed8;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --serif: ui-serif, Georgia, "Times New Roman", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -23,22 +24,25 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #131210;
-    --panel: #1a1917;
-    --ink: #eceae5;
-    --muted: #a19d95;
-    --faint: #7c786f;
-    --rule: #2e2c28;
-    --rule-strong: #43403a;
-    --accent: #d4714c;
-    --live: #5aab85;
-    --warn: #c69a3c;
-    --pro: #7aa9c6;
-    --con: #cc8a63;
+    --paper: #0d1117;
+    --panel: #11161d;
+    --ink: #e8ecf1;
+    --muted: #9aa5b1;
+    --faint: #6e7781;
+    --rule: #242b34;
+    --rule-strong: #39414c;
+    --accent: #6ea0ff;
+    --live: #4bb7cf;
+    --warn: #8b96a3;
+    --pro: #6ea0ff;
+    --con: #9aa5b1;
+    --dot: #ffffff;
   }
 }
 
 * { box-sizing: border-box; }
+
+.noscript { padding: 16px; }
 
 html, body { height: 100%; }
 
@@ -249,7 +253,7 @@ textarea.pad:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .notice.bad { border-color: var(--accent); }
 
 .searching { text-align: center; padding: 56px 0; }
-.searching .dots { color: var(--accent); margin: 26px 0 22px; }
+.searching .dots { color: var(--dot); margin: 26px 0 22px; }
 .judging { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .spinner { color: var(--accent); display: block; }
 .ring-label .spinner { color: var(--muted); }

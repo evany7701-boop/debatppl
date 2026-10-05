@@ -8,11 +8,24 @@ import { blankLeague, applyResult, rankOf } from "/lib/ranks.mjs";
 const KEY = "debatppl.v1";
 const SEEN_CAP = 500;
 
+// Your id is what the lobby uses to know which queue slot and which mailbox are
+// yours. That makes it a bearer token, so it is drawn from the CSPRNG and is 128
+// bits wide rather than something guessable from a timestamp.
+function newId() {
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto && globalThis.crypto.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function fresh() {
   const leagues = {};
   for (const l of LEAGUES) leagues[l] = blankLeague();
   return {
-    id: "d" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4),
+    id: newId(),
     created: Date.now(),
     leagues,
     seen: [],

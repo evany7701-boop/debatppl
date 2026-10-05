@@ -226,6 +226,9 @@ function viewPrivacy() {
   frag.append(h("h3", {}, "Your voice"));
   frag.append(h("ul", {},
     h("li", {}, "Audio goes directly between the two browsers. It is not recorded and it does not pass through this server."),
+    h("li", {}, "Because the connection is direct, the person you are debating can see your IP address, and you can see theirs. "
+      + "That is true of every peer-to-peer call, including the ones that do not tell you. An IP address is roughly a city and an "
+      + "internet provider, not a street address, but if that is not acceptable to you, do not use this."),
     h("li", {}, "Speech recognition is the browser's own. In Chrome and Edge that feature sends audio to Google's recognition service under Google's terms; in Safari it is handled by Apple. That is the browser's behaviour, not this site's, and it is the same engine any dictation box on the web uses."),
     h("li", {}, "The scratchpad during research is never sent anywhere.")));
 
@@ -421,6 +424,7 @@ async function beginSearch() {
   S.ballot = null; S.result = null; S.opponentRating = null; S.room = null;
   S.link = "connecting"; S.linkNote = null; S.notes = "";
 
+  S.searchStarted = Date.now();
   show("searching", () => viewSearching(f));
   await ensureMic();
   updateSearchMic();
@@ -437,7 +441,31 @@ async function beginSearch() {
   });
 
   try { await S.session.search(); }
-  catch (e) { showSearchError(String(e.message || e)); }
+  catch (e) { showSearchError(String(e.message || e)); return; }
+
+  // Nobody is coming. Say so plainly rather than spinning for ever.
+  S.giveUpTimer = setTimeout(giveUpSearch, QUEUE_PATIENCE);
+}
+
+const QUEUE_PATIENCE = 60000;
+
+function giveUpSearch() {
+  if (S.room) return;
+  leaveAll();
+  show("nobody", viewNobody);
+}
+
+function viewNobody() {
+  const frag = h("div", { class: "searching" },
+    h("h2", {}, "sorry we could not find you a user to debate with :("),
+    h("p", { class: "small" },
+      `Nobody else was in the ${FORMATS[S.league].name} queue for a minute. `
+      + "It is quiet rather than broken — try again, or try a different league."),
+    h("div", { class: "row", style: { marginTop: "24px", justifyContent: "center" } },
+      h("button", { class: "btn", onclick: beginSearch }, "Try again", icon("next", 16)),
+      h("button", { class: "btn ghost", onclick: () => navigate("home") }, "Pick another league")));
+  motion.stagger(frag.children, { step: 60, y: 10 });
+  return frag;
 }
 
 function viewSearching(f) {
@@ -454,7 +482,7 @@ function viewSearching(f) {
       h("button", { class: "btn ghost", onclick: () => { leaveAll(); goHome(); } }, "Cancel")),
   );
   S.ui = { dots, queued, micLine };
-  S.stopWave = motion.dotWave(dots, { count: 5, amp: 7, size: 8, speed: 2.4 });
+  S.stopWave = motion.dotWave(dots, { count: 3, amp: 8, size: 9, speed: 2.5, gap: 11 });
   return frag;
 }
 
@@ -476,7 +504,11 @@ function showSearchError(msg) {
 function onSessionStatus(state, info) {
   if (state === "waiting" && S.ui.queued) {
     const n = info && info.queued ? info.queued : 0;
-    S.ui.queued.textContent = n > 1 ? `${n} waiting in this league` : "";
+    const left = Math.max(0, Math.ceil((QUEUE_PATIENCE - (Date.now() - (S.searchStarted || 0))) / 1000));
+    S.ui.queued.textContent = [
+      n > 1 ? `${n} waiting in this league` : "",
+      left ? `giving up in ${left}s` : "",
+    ].filter(Boolean).join(" · ");
   }
   if (state === "peer-left") onPeerLeft();
 }
@@ -505,6 +537,7 @@ function setMic(on) {
 
 function onMatched(room) {
   clearInterval(S.searchTimer);
+  clearTimeout(S.giveUpTimer);
   if (S.stopWave) { S.stopWave(); S.stopWave = null; }
   S.room = room;
   profile.markSeen(room.topic.id);
@@ -676,7 +709,6 @@ function onRoundEvent(type, payload) {
     case "prep": case "poi": paintControls(S.round.view()); break;
     case "line": appendLine(payload); break;
     case "done": finish(payload); break;
-    case "ballot": onBallot(payload); break;
     default: break;
   }
 }
@@ -693,10 +725,9 @@ function paintPhase(v) {
 
   if (p.kind === "research") u.phaseWho.textContent = "Both microphones are closed. Nobody can hear you.";
   else if (p.kind === "gate") u.phaseWho.textContent = "Take prep, or say you are ready.";
-  else if (p.kind === "cross") u.phaseWho.innerHTML = "<span class='floor-mine'>Both microphones are open.</span>";
-  else u.phaseWho.innerHTML = v.mine
-    ? "<span class='floor-mine'>You have the floor.</span>"
-    : "Your opponent has the floor.";
+  else if (p.kind === "cross") u.phaseWho.replaceChildren(h("span", { class: "floor-mine" }, "Both microphones are open."));
+  else if (v.mine) u.phaseWho.replaceChildren(h("span", { class: "floor-mine" }, "You have the floor."));
+  else u.phaseWho.textContent = "Your opponent has the floor.";
 
   [...u.schedule.children].forEach((el, i) => {
     el.className = i < v.index ? "done" : i === v.index ? "now" : "";
@@ -850,16 +881,9 @@ async function finish(transcript) {
     }
   }
 
-  if (S.round.isHost) {
-    const ballot = await requestBallot(transcript);
-    try { S.session.send({ t: "ballot", ballot }); } catch {}
-    settleAndShow(ballot);
-  } else {
-    S.judgeTimer = setTimeout(() => {
-      if (S.ballot) return;
-      settleAndShow(localJudge({ topic: S.room.topic.text, formatId: S.room.league, transcript }));
-    }, 9000);
-  }
+  // Both sides ask for their own ballot. Letting the host compute it and send it
+  // over would mean trusting the other player to mark the round.
+  settleAndShow(await requestBallot(transcript));
 }
 
 async function requestBallot(transcript) {
@@ -874,11 +898,6 @@ async function requestBallot(transcript) {
     }
   } catch { /* fall through */ }
   return localJudge(body);
-}
-
-function onBallot(ballot) {
-  clearTimeout(S.judgeTimer);
-  settleAndShow(ballot);
 }
 
 function settleAndShow(ballot) {
@@ -1018,6 +1037,7 @@ function nextDivision(rank) {
 function leaveAll() {
   clearInterval(S.searchTimer);
   clearTimeout(S.judgeTimer);
+  clearTimeout(S.giveUpTimer);
   if (S.stopWave) { S.stopWave(); S.stopWave = null; }
   for (const k of ["judgeSpinner", "bigSpinner"]) {
     if (S[k] && S[k].stop) S[k].stop();

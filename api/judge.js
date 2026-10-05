@@ -20,7 +20,10 @@ export default async function handler(req, res) {
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = null; } }
   if (!body || !Array.isArray(body.transcript)) return res.status(400).json({ error: "no transcript" });
 
-  // Keep a stray enormous payload from becoming a bill.
+  // Keep a stray enormous payload from becoming a bill. The rubric scans every
+  // speech against roughly two hundred markers, so the cap is on total characters
+  // and not just on the number of speeches.
+  let budget = 120000;
   const transcript = body.transcript.slice(0, 40).map((t) => ({
     phase: String(t.phase || "").slice(0, 32),
     label: String(t.label || "").slice(0, 64),
@@ -28,13 +31,17 @@ export default async function handler(req, res) {
     side: t.side === "con" ? "con" : "pro",
     allotted: Number(t.allotted) || 0,
     spoken: Number(t.spoken) || 0,
-    text: String(t.text || "").slice(0, 20000),
+    text: (() => {
+      const text = String(t.text || "").slice(0, Math.max(0, Math.min(20000, budget)));
+      budget -= text.length;
+      return text;
+    })(),
   }));
 
   try {
     const ballot = judge({ topic: String(body.topic || "").slice(0, 400), formatId: body.formatId, transcript });
     return res.status(200).json({ ok: true, source: "server", method: METHOD, ballot });
-  } catch (err) {
-    return res.status(500).json({ error: String((err && err.message) || err) });
+  } catch {
+    return res.status(500).json({ error: "could not score the round" });
   }
 }

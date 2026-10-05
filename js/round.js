@@ -207,6 +207,7 @@ export class Round {
   }
 
   _absorb(entry) {
+    if (this.lines.length > 1500) return;   // a peer cannot grow this without bound
     this.lines.push(entry);
     const key = `${entry.phase}:${entry.side}`;
     const span = this.spans.get(key) || { first: entry.at, last: entry.at };
@@ -261,7 +262,9 @@ export class Round {
         this._absorb({ side: m.side, phase: m.phase, text: String(m.text || "").slice(0, 1200), at: m.at || Date.now() });
         break;
       case "done": if (!this.isHost) this._finish(true); break;
-      case "ballot": if (!this.isHost) this.on("ballot", m.ballot); break;
+      // A ballot is never accepted from the other side: they would be marking
+      // their own round. Both clients ask the server for their own.
+      case "ballot": break;
       default: break;
     }
   }
