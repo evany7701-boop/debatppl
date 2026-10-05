@@ -324,3 +324,100 @@ export function swapView(container, build, { y = 14 } = {}) {
   outS.set(0);
   return next;
 }
+
+// --- loops -------------------------------------------------------------------
+// A shared rAF registry for the two things that are genuinely continuous rather
+// than springing toward a target: the waiting dots and the judging spinner.
+
+const loops = new Set();
+let looping = false;
+
+function loopTick(now) {
+  for (const fn of loops) fn(now);
+  if (loops.size) requestAnimationFrame(loopTick);
+  else looping = false;
+}
+
+function addLoop(fn) {
+  loops.add(fn);
+  if (!looping) { looping = true; requestAnimationFrame(loopTick); }
+  return () => loops.delete(fn);
+}
+
+// Dots travelling up and down in a wave, the way a queue should feel: moving,
+// but not in a hurry.
+export function dotWave(host, { count = 5, amp = 6, size = 7, speed = 2.4, gap = 8 } = {}) {
+  host.replaceChildren();
+  host.style.display = "flex";
+  host.style.alignItems = "center";
+  host.style.justifyContent = "center";
+  host.style.gap = `${gap}px`;
+  host.style.height = `${amp * 2 + size + 4}px`;
+
+  const dots = [];
+  for (let i = 0; i < count; i++) {
+    const d = document.createElement("span");
+    Object.assign(d.style, {
+      width: `${size}px`, height: `${size}px`, borderRadius: "50%",
+      background: "currentColor", display: "block", opacity: "0.35",
+    });
+    host.append(d);
+    dots.push(d);
+  }
+  if (reduced) { for (const d of dots) d.style.opacity = "0.5"; return () => {}; }
+
+  return addLoop((now) => {
+    const t = (now / 1000) * speed;
+    dots.forEach((d, i) => {
+      const phase = t - i * 0.42;
+      const lift = Math.sin(phase);
+      d.style.transform = `translateY(${-lift * amp}px)`;
+      d.style.opacity = String(0.3 + 0.55 * (0.5 + 0.5 * lift));
+    });
+  });
+}
+
+// A circle that is actually being drawn and undrawn, rather than a ring with a
+// gap spun around. It reads as work in progress instead of as a stuck gif.
+export function spinner(size = 22, stroke = 2) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 40 40");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.classList.add("spinner");
+  svg.setAttribute("aria-hidden", "true");
+
+  const track = document.createElementNS(ns, "circle");
+  const arc = document.createElementNS(ns, "circle");
+  for (const c of [track, arc]) {
+    c.setAttribute("cx", "20"); c.setAttribute("cy", "20"); c.setAttribute("r", "16");
+    c.setAttribute("fill", "none");
+    c.setAttribute("stroke-width", String(stroke));
+    c.setAttribute("stroke-linecap", "round");
+  }
+  track.setAttribute("stroke", "currentColor");
+  track.setAttribute("stroke-opacity", "0.16");
+  arc.setAttribute("stroke", "currentColor");
+  const C = 2 * Math.PI * 16;
+  arc.setAttribute("stroke-dasharray", String(C));
+  svg.append(track, arc);
+
+  if (reduced) {
+    arc.setAttribute("stroke-dashoffset", String(C * 0.75));
+    svg.stop = () => {};
+    return svg;
+  }
+
+  const stop = addLoop((now) => {
+    const t = now / 1000;
+    // The arc grows and shrinks on its own cycle while the whole thing turns, so
+    // the head never sits still long enough to look frozen.
+    const sweep = 0.12 + 0.56 * (0.5 - 0.5 * Math.cos(t * 1.9));
+    arc.setAttribute("stroke-dashoffset", String(C * (1 - sweep)));
+    svg.style.transform = `rotate(${(t * 150) % 360}deg)`;
+    svg.style.transformOrigin = "50% 50%";
+  });
+  svg.stop = stop;
+  return svg;
+}

@@ -331,7 +331,7 @@ async function beginSearch() {
 }
 
 function viewSearching(f) {
-  const dots = h("p", { class: "dots" }, "· · ·");
+  const dots = h("div", { class: "dots" });
   const queued = h("p", { class: "small mono" }, "");
   const micLine = h("p", { class: "small" }, "");
   const frag = h("div", { class: "searching" },
@@ -344,15 +344,7 @@ function viewSearching(f) {
       h("button", { class: "btn ghost", onclick: () => { leaveAll(); goHome(); } }, "Cancel")),
   );
   S.ui = { dots, queued, micLine };
-
-  // A three-dot cycle driven by the spring loop rather than a CSS keyframe, so it
-  // stops dead when the page is hidden and never drifts out of step with the rest.
-  let n = 0;
-  S.searchTimer = setInterval(() => {
-    n = (n + 1) % 4;
-    dots.textContent = "· ".repeat(n).trim() || "·";
-    dots.style.opacity = String(0.4 + 0.15 * n);
-  }, 420);
+  S.stopWave = motion.dotWave(dots, { count: 5, amp: 7, size: 8, speed: 2.4 });
   return frag;
 }
 
@@ -365,7 +357,8 @@ function updateSearchMic() {
 
 function showSearchError(msg) {
   if (!S.ui.dots) return;
-  S.ui.dots.textContent = "";
+  if (S.stopWave) { S.stopWave(); S.stopWave = null; }
+  S.ui.dots.replaceChildren();
   S.ui.queued.textContent = "";
   S.ui.micLine.textContent = `Could not reach the lobby: ${msg}`;
 }
@@ -402,6 +395,7 @@ function setMic(on) {
 
 function onMatched(room) {
   clearInterval(S.searchTimer);
+  if (S.stopWave) { S.stopWave(); S.stopWave = null; }
   S.room = room;
   profile.markSeen(room.topic.id);
   S.round = new Round({
@@ -732,7 +726,18 @@ async function finish(transcript) {
   if (S.ui.phaseName) {
     S.ui.phaseName.textContent = "Reading the transcript";
     S.ui.phaseWho.textContent = "Sides are anonymised before anything is scored.";
-    S.ui.controls.replaceChildren();
+    const spin = motion.spinner(20);
+    S.judgeSpinner = spin;
+    S.ui.controls.replaceChildren(h("span", { class: "judging" }, spin,
+      h("span", {}, S.round.isHost ? "scoring the round" : "waiting for the ballot")));
+    if (S.ui.ringWrap) {
+      S.ui.ringWrap.classList.remove("urgent");
+      S.ui.timeText.textContent = "";
+      S.ui.timeSub.textContent = "judging";
+      const big = motion.spinner(56, 3);
+      S.ui.bigSpinner = big;
+      S.ui.ringWrap.querySelector(".ring-label").replaceChildren(big);
+    }
   }
 
   if (S.round.isHost) {
@@ -768,6 +773,8 @@ function onBallot(ballot) {
 
 function settleAndShow(ballot) {
   if (S.ballot) return;
+  if (S.judgeSpinner && S.judgeSpinner.stop) S.judgeSpinner.stop();
+  if (S.ui.bigSpinner && S.ui.bigSpinner.stop) S.ui.bigSpinner.stop();
   S.ballot = ballot;
   const mine = S.room.side;
   const score = ballot.winner === "draw" ? 0.5 : ballot.winner === mine ? 1 : 0;
@@ -898,6 +905,12 @@ function nextDivision(rank) {
 function leaveAll() {
   clearInterval(S.searchTimer);
   clearTimeout(S.judgeTimer);
+  if (S.stopWave) { S.stopWave(); S.stopWave = null; }
+  for (const k of ["judgeSpinner", "bigSpinner"]) {
+    if (S[k] && S[k].stop) S[k].stop();
+    if (S.ui && S.ui[k] && S.ui[k].stop) S.ui[k].stop();
+    S[k] = null;
+  }
   stopDictation();
   setMic(false);
   if (S.ui.wave) { S.ui.wave.stop(); S.ui.wave = null; }

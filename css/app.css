@@ -249,7 +249,10 @@ textarea.pad:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .notice.bad { border-color: var(--accent); }
 
 .searching { text-align: center; padding: 56px 0; }
-.searching .dots { font: 400 15px/1 var(--mono); color: var(--faint); letter-spacing: .3em; margin-top: 14px; }
+.searching .dots { color: var(--accent); margin: 26px 0 22px; }
+.judging { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.spinner { color: var(--accent); display: block; }
+.ring-label .spinner { color: var(--muted); }
 
 /* --- ballot --------------------------------------------------------------- */
 
