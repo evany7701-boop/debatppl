@@ -4,7 +4,7 @@ import { h, icon, rankBadge } from "/js/ui.js";
 import * as motion from "/js/motion.js";
 import { FORMATS, LEAGUES, fmtClock } from "/lib/formats.mjs";
 import { ALL_TOPICS, REGIONS, THEMES } from "/lib/topics.mjs";
-import { TIERS, rankOf, START_RATING } from "/lib/ranks.mjs";
+import { TIERS, rankOf, START_RATING, applyResult } from "/lib/ranks.mjs";
 import * as profile from "/js/profile.js";
 import { Session, lobbyStats } from "/js/net.js";
 import { Round } from "/js/round.js";
@@ -96,6 +96,111 @@ function viewHome() {
 
   motion.stagger(frag.children, { step: 55, y: 12 });
   return frag;
+}
+
+
+// --- preview -------------------------------------------------------------------
+// A design harness at #/preview. The round and the ballot are the two screens that
+// cannot be looked at without two people and a working lobby, so this renders them
+// against canned data. It touches nothing real: no queue, no peer connection, and
+// no write to your rating.
+
+const SAMPLE_PRO = "My first contention is that the college distorts the value of a vote. According to a 2020 "
+  + "study a vote in Wyoming is worth 3.6 times a vote in California, because the floor of three electors is "
+  + "fixed regardless of population. They say the college protects small states. That is false, and here is "
+  + "why: the data shows campaign visits concentrate in six states, which means forty four states are ignored "
+  + "entirely. Even if you buy their claim about federalism, the magnitude of disenfranchising ninety million "
+  + "voters outweighs it, and it is irreversible in a way their harm is not. Second, the mechanism they "
+  + "describe does not follow. Their evidence concerns the Senate, not the presidency. To conclude, on balance "
+  + "the harm comes first on both probability and scope.";
+
+const SAMPLE_CON = "I want to respond directly to their first contention. The 3.6 figure is real but it measures "
+  + "electors per head, not influence, and the research they cite concedes that in its own limitations section. "
+  + "My case is that the college forces coalitions to be geographically broad. Because a candidate cannot win on "
+  + "turnout in three cities alone, they have to build support across regions, which means rural interests get a "
+  + "hearing they would otherwise lose. On their swing state point: that is a feature of winner-take-all "
+  + "allocation at state level, not of the college itself, so their link is to the wrong thing. Finally, on "
+  + "weighing, their impact is reversible through a compact between states; the instability of a disputed "
+  + "national recount is not.";
+
+function previewRoom(league) {
+  const pool = ALL_TOPICS.filter((t) => t.style === (league === "ld" || league === "pf" ? "res" : "thw"));
+  return {
+    roomId: "preview",
+    league,
+    topic: pool[Math.floor(Math.random() * pool.length)],
+    side: "pro",
+    role: "host",
+    createdAt: Date.now(),
+    preview: true,
+  };
+}
+
+function viewPreview() {
+  const frag = h("div", { class: "prose" });
+  frag.append(h("h2", {}, "Preview"));
+  frag.append(h("p", { class: "small" },
+    "A harness for looking at the two screens that normally need an opponent. "
+    + "Nothing here queues you, connects to anyone, or changes your rating."));
+
+  const pick = h("select", { "aria-label": "League" },
+    ...LEAGUES.map((id) => h("option", { value: id, selected: id === S.league }, FORMATS[id].name)));
+
+  frag.append(h("div", { class: "filters" }, pick,
+    h("button", {
+      class: "btn small",
+      onclick: () => startPreviewRound(pick.value),
+    }, "Round chrome"),
+    h("button", {
+      class: "btn ghost small",
+      onclick: () => showPreviewBallot(pick.value),
+    }, "Sample ballot")));
+
+  frag.append(h("p", { class: "small" },
+    "The round preview runs the real clock on the real speech times, so the first thing "
+    + "you will see is the five minute research block. Press Ready to move on."));
+
+  motion.stagger(frag.children, { step: 35 });
+  return frag;
+}
+
+function startPreviewRound(league) {
+  leaveAll();
+  S.room = previewRoom(league);
+  S.league = league;
+  S.link = "p2p";
+  S.round = new Round({
+    league, side: "pro", isHost: true,
+    solo: true,                           // the gates must not wait for a second person
+    send: () => {},                       // nobody is listening, by design
+    on: onRoundEvent,
+  });
+  show("round", viewRound);
+  ensureMic().then(() => { if (S.ui.wave && S.stream) S.ui.wave.attach(S.stream); });
+  S.round.start();
+}
+
+function showPreviewBallot(league) {
+  leaveAll();
+  S.room = previewRoom(league);
+  S.league = league;
+  const transcript = [
+    { phase: "p1", label: "Constructive", kind: "speech", side: "pro", allotted: 240, spoken: 214, text: SAMPLE_PRO },
+    { phase: "c1", label: "Constructive", kind: "speech", side: "con", allotted: 240, spoken: 201, text: SAMPLE_CON },
+  ];
+  S.ballot = localJudge({ topic: S.room.topic.text, formatId: league, transcript });
+  S.round = { lines: transcript.map((t) => ({ side: t.side, text: t.text })) };
+
+  // A rating move computed the same way a real one is, but never written down.
+  const before = profile.league(league);
+  const { league: after, delta } = applyResult(before, before.rating + 40,
+    S.ballot.winner === "draw" ? 0.5 : S.ballot.winner === "pro" ? 1 : 0);
+  S.result = {
+    before, after, delta,
+    beforeRank: rankOf(before.rating), afterRank: rankOf(after.rating),
+    promoted: false, demoted: false,
+  };
+  show("ballot", viewBallot);
 }
 
 // --- privacy and terms -------------------------------------------------------
@@ -922,7 +1027,7 @@ function leaveAll() {
   stopDictation();
   setMic(false);
   if (S.ui.wave) { S.ui.wave.stop(); S.ui.wave = null; }
-  if (S.round) { S.round.stop(); S.round = null; }
+  if (S.round) { if (S.round.stop) S.round.stop(); S.round = null; }
   if (S.session) { S.leaving = S.session.leave(); S.session = null; }
   remoteAudio.srcObject = null;
   S.ui = {};
@@ -938,6 +1043,7 @@ const PAGES = {
   about: viewAbout,
   privacy: viewPrivacy,
   terms: viewTerms,
+  preview: viewPreview,
 };
 
 function route(name, { push = true } = {}) {

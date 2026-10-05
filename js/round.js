@@ -25,6 +25,7 @@ export class Round {
     this.isHost = opts.isHost;
     this.send = opts.send;
     this.on = opts.on || (() => {});
+    this.solo = Boolean(opts.solo);       // preview harness: no second person to wait for
 
     this.index = 0;
     this.rem = this.format.phases[0].sec;
@@ -132,7 +133,7 @@ export class Round {
 
   _ready(who) {
     this.ready[who] = true;
-    if (this.ready.pro && this.ready.con) {
+    if (this.solo || (this.ready.pro && this.ready.con)) {
       if (this.index + 1 >= this.format.phases.length) return this._finish();
       this._setPhase(this.index + 1);
       this.on("phase", this.view());

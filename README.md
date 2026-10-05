@@ -151,3 +151,9 @@ here. Everything is behind `prefers-reduced-motion`.
 - **Leaving mid-round is a walkover** for whoever stayed. Two people who know each other
   could farm that.
 - **Firefox has no speech recognition.** It falls back to typing.
+
+## Preview
+
+`#/preview` renders the round chrome and a sample ballot against canned data —
+the two screens that otherwise need two people and a live lobby to look at. It does
+not queue you, connect to anyone, or write to your rating.
