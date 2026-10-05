@@ -202,3 +202,21 @@ deliberately does not have:
   page says so plainly rather than hiding it.
 - **Ratings are client-side and therefore unenforceable.** Anyone can edit them. They
   mean something only because nothing is at stake.
+
+## Tests
+
+```
+python3 tests/smoke.py https://debatppl.vercel.app
+```
+
+52 end-to-end checks against a live deployment: that every file is served with the
+right type, that the hardening headers are present, that the judge behaves (the better
+speech wins, side labels do not decide it, relabelling swaps the ballot exactly,
+identical speeches draw, padding does not win, silence forfeits), that inputs are
+bounded, and that two players really do find each other through the live lobby, get the
+same motion on opposite sides, relay signals, and are told when the other leaves —
+without the relay ever handing one of them the other's id.
+
+`/tests/selfcheck.html` is the browser half: motion-bank integrity, format timing
+balance, equal speaking time on both sides of every league, rank boundaries, Elo
+behaviour and the judge's bias tests, run in the page.
