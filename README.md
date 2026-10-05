@@ -87,8 +87,10 @@ exactly; there is a test for that too.
 
 ### The model judge
 
-`POST /api/judge` runs **Claude Opus 5** over the transcript when `ANTHROPIC_API_KEY` is
-set, and the deterministic rubric when it is not. Set the key in Vercel under *Settings →
+`POST /api/judge` runs **Claude Haiku 4.5** over the transcript when `ANTHROPIC_API_KEY`
+is set, and the deterministic rubric when it is not. `ANTHROPIC_MODEL` overrides the
+model; `claude-sonnet-5` and `claude-opus-5` are the steps up from here, at roughly 2x
+and 5x the cost per round. Set the key in Vercel under *Settings →
 Environment Variables*; nothing else needs configuring, and the app works without it.
 
 The rubric runs on every round either way, because it is two things at once: the fallback
@@ -108,8 +110,13 @@ capable model can infer which speaker held which side. A judge sitting in the ro
 that too. What makes it fair is upstream rather than in the prompt — the lobby draws
 sides at random, so no player is systematically handed the side a judge might favour.
 
-Cost is roughly a few cents a round at Opus 5 rates. `ANTHROPIC_MODEL` overrides the
-model if you want a cheaper one.
+Cost is about a penny a round on Haiku 4.5. The judge fires once, at the end of a
+completed round, for both debaters together — an abandoned round never reaches it and a
+forfeit skips the model entirely.
+
+Thinking is configured per model: the 4.6+ family takes adaptive thinking and rejects
+`budget_tokens`, while Haiku 4.5 takes a fixed budget and rejects adaptive. `thinkingFor()`
+picks the right shape, because sending the wrong one is a 400 rather than a warning.
 
 ## Motions
 

@@ -20,7 +20,17 @@
 
 import { judge as rubricJudge, blind, CRITERIA, METHOD } from "../lib/rubric.mjs";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5";
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
+
+// Thinking is configured differently either side of the 4.6 line. The 4.6+ family
+// takes adaptive thinking and rejects budget_tokens; Haiku 4.5 and older take a
+// fixed budget and reject adaptive. Sending the wrong one is a 400, not a warning,
+// so the shape follows the model rather than the other way round.
+function thinkingFor(model) {
+  return /-4-5$|-4-5-|sonnet-4-5|haiku-4-5/.test(model)
+    ? { type: "enabled", budget_tokens: 4000 }
+    : { type: "adaptive" };
+}
 const MAX_SPEECHES = 40;
 const CHAR_BUDGET = 120000;
 
@@ -117,7 +127,7 @@ async function modelBallot(round, rubric) {
     model: MODEL,
     max_tokens: 16000,
     system: SYSTEM,
-    thinking: { type: "adaptive" },
+    thinking: thinkingFor(MODEL),
     tools: [TOOL],
     messages: [{ role: "user", content: brief(round, b) }],
   });
@@ -186,6 +196,7 @@ function why(err) {
   if (/Cannot find|ERR_MODULE_NOT_FOUND/i.test(msg)) return "sdk-missing";
   if (status === 401 || status === 403) return "key-rejected";
   if (status === 429) return "rate-limited";
+  if (status === 400) return "bad-request";
   if (status >= 500) return "upstream";
   if (/declined/.test(msg)) return "declined";
   if (/ballot/.test(msg)) return "malformed";
