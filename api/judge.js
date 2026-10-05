@@ -246,8 +246,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "could not score the round" });
   }
 
-  // A round nobody spoke in does not need a model to adjudicate it.
-  if (rubric.forfeit || !process.env.ANTHROPIC_API_KEY) {
+  // A round nobody spoke in does not need a model to adjudicate it. A caller can also
+  // ask for the rubric outright: the test suite asserts determinism, blinding and exact
+  // antisymmetry, none of which a model has or should be billed to pretend to.
+  if (rubric.forfeit || body.judge === "rubric" || !process.env.ANTHROPIC_API_KEY) {
     return res.status(200).json({
       ok: true,
       source: "rubric",

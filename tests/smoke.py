@@ -101,6 +101,14 @@ def speech(side, text, sec=214, phase="p1"):
             "allotted": 240, "spoken": sec, "text": text}
 
 def send(transcript):
+    # Explicitly the rubric: these assertions are about determinism, blinding and
+    # exact antisymmetry. A model has none of those properties, and billing one to
+    # answer the same question eight times a run would be money set on fire.
+    st, b, _ = req("/api/judge", {"topic": TOPIC, "formatId": "pf",
+                                  "transcript": transcript, "judge": "rubric"})
+    return st, (b.get("ballot") if isinstance(b, dict) else b)
+
+def send_model(transcript):
     st, b, _ = req("/api/judge", {"topic": TOPIC, "formatId": "pf", "transcript": transcript})
     return st, (b.get("ballot") if isinstance(b, dict) else b)
 
@@ -175,6 +183,32 @@ st11, b11, _ = req("/api/lobby", {"action": "find", "id": "floodtest1", "league"
                                   "seen": list(range(0, 50000))})
 check("an oversized seen list is survivable", st11 == 200, st11)
 req("/api/lobby", {"action": "leave", "id": "floodtest1", "league": "bp"})
+
+# --- which judge is configured -------------------------------------------------
+st, health, _ = req("/api/judge")
+check("GET /api/judge reports its configuration", st == 200 and isinstance(health, dict), health)
+if isinstance(health, dict):
+    check("the health check never echoes the key",
+          "key" not in json.dumps(health).lower().replace("api_key_set", ""), health)
+    print(f"      judge: {health.get('judge')} ({health.get('model') or health.get('rubric')})")
+
+# The model path costs real money, so it runs only when asked for:
+#   python3 tests/smoke.py <url> --model
+if "--model" in sys.argv:
+    st, mb = send_model([speech("pro", STRONG), speech("con", WEAK, 214, "c1"),
+                         speech("pro", STRONG, 214, "p2"), speech("con", WEAK, 214, "c2")])
+    check("the model judge returns a ballot",
+          isinstance(mb, dict) and mb.get("winner") in ("pro", "con", "draw"), mb)
+    if isinstance(mb, dict):
+        check("the model ballot is labelled as the model's",
+              str(mb.get("method", "")).startswith("model:"), mb.get("method"))
+        check("the model ballot carries a reason for decision", len(mb.get("rfd", [])) >= 3)
+        check("the rubric is reported alongside it as a cross-check",
+              isinstance(mb.get("cross"), dict), mb.get("cross"))
+        print(f"      model said {mb.get('winner')} by {mb.get('margin')}; "
+              f"rubric said {(mb.get('cross') or {}).get('rubric')}")
+elif isinstance(health, dict) and health.get("judge") == "model":
+    print("      (model path not exercised - pass --model to spend ~5c on one round)")
 
 # --- matchmaking --------------------------------------------------------------
 A, B = f"smokeA{int(time.time())}", f"smokeB{int(time.time())}"
