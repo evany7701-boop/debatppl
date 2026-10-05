@@ -50,12 +50,14 @@ export class Session {
     this.pendingIce = [];
     this.remoteSet = false;
     this.queued = 0;
+    this.lastFind = 0;
   }
 
   // --- lobby ----------------------------------------------------------------
 
   async search() {
     this.stopped = false;
+    this.lastFind = Date.now();
     const res = await post({ action: "find", id: this.id, league: this.league, seen: this.seen });
     if (res.state === "matched") return this._matched(res.room);
     this.queued = res.queued || 0;
@@ -73,10 +75,22 @@ export class Session {
         if (this.stopped) return;
         if (res.state === "matched") {
           if (!this.room) this._matched(res.room);
-          for (const s of res.signals || []) this._incoming(s.d);
+          for (const s of res.signals || []) {
+            // A frame stamped for a different room is left over from a finished
+            // one. Acting on it ends the round you are actually in.
+            if (s.r && this.room && s.r !== this.room.roomId) continue;
+            this._incoming(s.d);
+          }
         } else {
           this.queued = res.queued || 0;
           this.onStatus("waiting", { queued: this.queued });
+          // A player who was popped off the queue as stale by someone else is no
+          // longer queued at all, and polling alone never puts them back. Re-enter
+          // periodically; find() is idempotent.
+          if (Date.now() - this.lastFind > 15000) {
+            this.lastFind = Date.now();
+            try { await post({ action: "find", id: this.id, league: this.league, seen: this.seen }); } catch {}
+          }
         }
       } catch { /* a dropped poll is not fatal; the next one will do */ }
       this._poll(this.link === "p2p" ? POLL_IDLE : POLL_FAST);

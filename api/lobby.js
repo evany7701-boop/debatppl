@@ -103,6 +103,11 @@ async function createRoom(league, waitingId, joinerId, seen) {
   await store.set(pKey(waitingId), id, ROOM_TTL);
   await store.set(pKey(joinerId), id, ROOM_TTL);
   await store.del(wKey(waitingId), wKey(joinerId));
+  // Start both mailboxes empty. A mailbox is only drained while its owner is in a
+  // room, so a frame written after they left - a "bye" above all - would otherwise
+  // sit there and be delivered at the top of their next round, reading as though
+  // the new opponent had walked out before saying a word.
+  await store.del(mKey(waitingId), mKey(joinerId));
   return room;
 }
 
@@ -156,7 +161,7 @@ async function signal(body) {
   if ((await store.llen(mKey(peer))) > MAILBOX_CAP) return { ok: true, dropped: true };
   // Deliberately no sender id in the envelope. A player id is the only thing that
   // authenticates a player to this endpoint, so it must never reach the other side.
-  await store.rpush(mKey(peer), ...items.slice(0, 20).map((d) => JSON.stringify({ d })));
+  await store.rpush(mKey(peer), ...items.slice(0, 20).map((d) => JSON.stringify({ r: room.id, d })));
   return { ok: true };
 }
 
@@ -170,9 +175,10 @@ async function leave(body) {
   const room = await roomOf(id);
   if (room) {
     const peer = room.members.find((m) => m !== id);
-    if (peer) await store.rpush(mKey(peer), JSON.stringify({ d: { kind: "bye" } }));
+    if (peer) await store.rpush(mKey(peer), JSON.stringify({ r: room.id, d: { kind: "bye" } }));
     await store.del(pKey(id));
   }
+  await store.del(mKey(id));
   return { ok: true };
 }
 

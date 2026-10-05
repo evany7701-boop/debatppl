@@ -18,7 +18,6 @@
 //   makes this fair is upstream, not here: the lobby draws sides at random, so no
 //   player is systematically handed the side a judge might favour.
 
-import Anthropic from "@anthropic-ai/sdk";
 import { judge as rubricJudge, blind, CRITERIA, METHOD } from "../lib/rubric.mjs";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5";
@@ -109,6 +108,9 @@ const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
 async function modelBallot(round, rubric) {
   const b = blind(round.transcript);
+  // Loaded here rather than at module scope: if the dependency is missing or broken,
+  // this round still gets a ballot from the rubric instead of a 500.
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic();
 
   const stream = client.messages.stream({

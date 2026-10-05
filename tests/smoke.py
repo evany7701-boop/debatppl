@@ -222,6 +222,29 @@ if matched:
                 if s.get("d", {}).get("kind") == "bye"]
         check("leaving tells the other side", len(byes) == 1, p3)
 
+    # Regression: a "bye" written to a mailbox after its owner left used to sit
+    # there until their next room, arriving as though the new opponent had quit.
+    for pid in (A, B):
+        req("/api/lobby", {"action": "leave", "id": pid, "league": "spar"})
+    again = None
+    for attempt in range(4):
+        req("/api/lobby", {"action": "find", "id": A, "league": "spar", "seen": []})
+        st, r2b, _ = req("/api/lobby", {"action": "find", "id": B, "league": "spar", "seen": []})
+        if isinstance(r2b, dict) and r2b.get("state") == "matched":
+            again = r2b["room"]; break
+        time.sleep(1.5)
+    if again:
+        st, pa, _ = req("/api/lobby", {"action": "poll", "id": A, "league": "spar"})
+        sig = pa.get("signals", []) if isinstance(pa, dict) else []
+        stale = [x for x in sig if x.get("d", {}).get("kind") == "bye"]
+        check("a new round does not inherit the last round's goodbye", not stale, sig)
+        check("the new room is a different room",
+              isinstance(pa, dict) and pa.get("room", {}).get("roomId") != room_b["roomId"])
+        for pid in (A, B):
+            req("/api/lobby", {"action": "leave", "id": pid, "league": "spar"})
+    else:
+        check("a new round does not inherit the last round's goodbye", False, "could not rematch")
+
     # motions should not repeat for a player who says they have seen them
     seen = list(range(0, 300))
     st, r3, _ = req("/api/lobby", {"action": "find", "id": A + "x", "league": "spar", "seen": seen})

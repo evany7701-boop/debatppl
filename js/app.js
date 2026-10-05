@@ -455,6 +455,18 @@ function giveUpSearch() {
   show("nobody", viewNobody);
 }
 
+function viewAbandoned() {
+  const frag = h("div", { class: "searching" },
+    h("h2", {}, "Your opponent left before the round started"),
+    h("p", { class: "small" },
+      "Nothing was said, so nothing was scored and no rating moved."),
+    h("div", { class: "row", style: { marginTop: "24px", justifyContent: "center" } },
+      h("button", { class: "btn", onclick: beginSearch }, "Find someone else", icon("next", 16)),
+      h("button", { class: "btn ghost", onclick: () => navigate("home") }, "Home")));
+  motion.stagger(frag.children, { step: 60, y: 10 });
+  return frag;
+}
+
 function viewNobody() {
   const frag = h("div", { class: "searching" },
     h("h2", {}, "sorry we could not find you a user to debate with :("),
@@ -573,6 +585,16 @@ function onPeerLeft() {
   S.round.over = true;
   stopDictation();
   setMic(false);
+
+  // Nobody has spoken yet, so there is nothing to award and nothing to lose. A
+  // dropped connection in the first minute should not move anyone's rating.
+  const spoken = S.round.lines && S.round.lines.length;
+  if (!spoken) {
+    leaveAll();
+    show("nobody", () => viewAbandoned());
+    return;
+  }
+
   const mine = S.room.side;
   const ballot = {
     method: "walkover",
