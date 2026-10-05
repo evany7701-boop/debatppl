@@ -307,6 +307,11 @@ function viewLadder() {
 // --- searching ---------------------------------------------------------------------
 
 async function beginSearch() {
+  // Wait for the previous round's leave to land first. Without this, "Next round"
+  // can issue find() and leave() concurrently and the leave deletes the queue
+  // entry the find just created, leaving you waiting forever.
+  if (S.leaving) { try { await S.leaving; } catch { /* nothing to do */ } S.leaving = null; }
+
   const f = FORMATS[S.league];
   S.ballot = null; S.result = null; S.opponentRating = null; S.room = null;
   S.link = "connecting"; S.linkNote = null; S.notes = "";
@@ -847,9 +852,12 @@ function viewBallot() {
       + `answered ${s.answered}%/${t.answered}% · time used ${s.timeUsed}%/${t.timeUsed}%`));
   }
 
-  // reason for decision
+  // reason for decision, in this league's own names for the sides
+  const rename = (line) => line
+    .replace(/Proposition/g, sideName(room.league, "pro"))
+    .replace(/Opposition/g, sideName(room.league, "con"));
   frag.append(h("h3", { style: { marginTop: "22px" } }, "Reason for decision"));
-  frag.append(h("ul", { class: "rfd" }, ...(ballot.rfd || []).map((l) => h("li", {}, l))));
+  frag.append(h("ul", { class: "rfd" }, ...(ballot.rfd || []).map((l) => h("li", {}, rename(l)))));
 
   // rating
   if (res) {
@@ -915,30 +923,56 @@ function leaveAll() {
   setMic(false);
   if (S.ui.wave) { S.ui.wave.stop(); S.ui.wave = null; }
   if (S.round) { S.round.stop(); S.round = null; }
-  if (S.session) { S.session.leave(); S.session = null; }
+  if (S.session) { S.leaving = S.session.leave(); S.session = null; }
   remoteAudio.srcObject = null;
   S.ui = {};
 }
 
-function goHome() { show("home", viewHome); }
+function goHome() { route("home"); }
 
-document.getElementById("home-link").addEventListener("click", () => { leaveAll(); goHome(); });
-for (const b of document.querySelectorAll("[data-nav]")) {
-  b.addEventListener("click", () => {
-    const n = b.dataset.nav;
-    if (S.round && !S.round.over && !confirm("Leave the round?")) return;
-    leaveAll();
-    if (n === "topics") show("topics", viewTopics);
-    else if (n === "ladder") show("ladder", viewLadder);
-    else if (n === "privacy") show("privacy", viewPrivacy);
-    else if (n === "terms") show("terms", viewTerms);
-    else show("about", viewAbout);
-  });
+const PAGES = {
+  "": viewHome,
+  home: viewHome,
+  topics: viewTopics,
+  ladder: viewLadder,
+  about: viewAbout,
+  privacy: viewPrivacy,
+  terms: viewTerms,
+};
+
+function route(name, { push = true } = {}) {
+  const build = PAGES[name] || viewHome;
+  const key = PAGES[name] ? name : "home";
+  if (push) {
+    const hash = key === "home" ? "#/" : `#/${key}`;
+    if (location.hash !== hash) history.pushState(null, "", hash);
+  }
+  show(key, build);
 }
+
+function navigate(name) {
+  if (S.round && !S.round.over && !confirm("Leave the round?")) return;
+  leaveAll();
+  route(name);
+}
+
+document.getElementById("home-link").addEventListener("click", () => navigate("home"));
+for (const b of document.querySelectorAll("[data-nav]")) {
+  b.addEventListener("click", () => navigate(b.dataset.nav));
+}
+
+// Back and forward should work on the reading pages. A round is not a page: if you
+// are mid-round the history move is honoured but the round is torn down first.
+window.addEventListener("popstate", () => {
+  const name = (location.hash || "").replace(/^#\/?/, "");
+  if (S.round && !S.round.over) leaveAll();
+  if (S.view === "round" || S.view === "searching" || S.view === "ballot") leaveAll();
+  route(name, { push: false });
+});
 
 window.addEventListener("beforeunload", () => { if (S.session) S.session.leave(); });
 
-goHome();
+route((location.hash || "").replace(/^#\/?/, ""), { push: false });
 
 lobbyStats().then((s) => {
   const el = document.getElementById("foot-stats");
